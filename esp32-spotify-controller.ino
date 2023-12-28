@@ -4,12 +4,16 @@
 #include <WebServer.h>
 #include <WiFi.h>
 
+#define BTN1 0
+#define BTN2 4
+
 typedef struct{
 	String auth_code;
 	String access_token;
 	String refresh_token;
 	bool auth_code_set;
 	bool access_token_set;
+	int request;
 } spotify_client;
 
 enum web_page {
@@ -17,18 +21,40 @@ enum web_page {
 	ERROR
 };
 
-const String WIFI_SSID = "";
-const String WIFI_PASSWORD = "";
-const String CLIENT_ID = "";
-const String CLIENT_SECRET = "";
-const String REDIRECT_URI = "http://192.168.1.146/callback";
+enum request {
+	NONE,
+	NEXT,
+	PREVIOUS,
+	VOL_UP,
+	VOL_DOWN,
+	PLAY,
+	PAUSE,
+};
+
+const String WIFI_SSID = "ORBI45";
+const String WIFI_PASSWORD = "AB1C9517ADCF37E11340854C523B04B4C9451B2140C9971853DE45F7E5DCCA4A";
+const String CLIENT_ID = "974b8ee0b9f84500b4dc5340cf7b1416";
+const String CLIENT_SECRET = "11bfca0a5d7c451499d2fda8133652df";
+const String REDIRECT_URI = "http://192.168.1.148/callback";
 
 spotify_client spotify;
 WebServer server(80);
 
+void IRAM_ATTR next_ISR(){
+	spotify.request = NEXT;
+}
+
+void IRAM_ATTR previous_ISR(){
+	spotify.request = PREVIOUS;
+}
+
 void setup(){
     Serial.begin(115200);
     delay(4000);
+	pinMode(BTN1, INPUT_PULLUP);
+	pinMode(BTN2, INPUT_PULLUP);
+	attachInterrupt(BTN1, next_ISR, FALLING);
+	attachInterrupt(BTN2, previous_ISR, FALLING);
 
 	init_spotify_client(&spotify);
 
@@ -38,24 +64,42 @@ void setup(){
         Serial.println("Connecting to WiFi...");
     }
     Serial.println("Connected to WiFi network");
+    Serial.println("IP address: ");
+    Serial.println(WiFi.localIP()); 
 
 	server.on("/", handle_on_root);
 	server.on("/callback", handle_authorization);
 	server.begin();
 }
 
+int poll_rate = 5000;
 void loop(){
+	Serial.println("Loop Start");
 	if (spotify.auth_code_set){
+		Serial.println("Auth Code set");
 		if(spotify.access_token_set){
-
+			Serial.println("Both Set");
+			switch(spotify.request){
+				case NEXT:
+					next();
+					spotify.request = NONE;
+					break;
+				case PREVIOUS:
+					previous();
+					spotify.request = NONE;
+					break;
+				default:
+					break;
+			}
 		} else {
+			Serial.println("Getting tokens");
 			get_access_tokens();
 		}
 	} else {
 		server.handleClient();
 	}
 
-	delay(10000);
+	delay(poll_rate);
 }
 
 void init_spotify_client(spotify_client *spotify){
@@ -64,6 +108,7 @@ void init_spotify_client(spotify_client *spotify){
 	spotify->refresh_token = "";
 	spotify->auth_code_set = false;
 	spotify->access_token_set = false;
+	spotify->request = NONE;
 }
 
 String get_html_page(int page){
@@ -145,6 +190,7 @@ void get_access_tokens(){
             Serial.println("Got access and refresh tokens");
             Serial.println("Access token: " + spotify.access_token);
             Serial.println("Refresh Token: " + spotify.refresh_token);
+			poll_rate = 100;
 		} else {
 			Serial.println("Failed to get tokens");
             Serial.println(json);
@@ -152,4 +198,48 @@ void get_access_tokens(){
 	} else {
 		Serial.println("HTTP Request Failed");
 	}
+
+	http.end();
+}
+
+void next(){
+	Serial.println("Next");
+	HTTPClient http;
+
+	http.begin("https://api.spotify.com/v1/me/player/next");
+	http.addHeader("Authorization", "Bearer " + spotify.access_token);
+	http.addHeader("Content-Type", "application-json");
+
+	int http_code = http.POST(" ");
+
+	if(http_code > 0){
+		// String json = http.getString();
+		Serial.println("HTTP Code: " + http_code);
+		// Serial.println(json);
+	} else {
+		Serial.println("HTTP Request Failed");
+	}
+
+	http.end();
+}
+
+void previous(){
+	Serial.println("Previous");
+	HTTPClient http;
+
+	http.begin("https://api.spotify.com/v1/me/player/previous");
+	http.addHeader("Authorization", "Bearer " + spotify.access_token);
+	http.addHeader("Content-Type", "application-json");
+
+	int http_code = http.POST(" ");
+
+	if(http_code > 0){
+		// String json = http.getString();
+		Serial.println("HTTP Code: " + http_code);
+		// Serial.println(json);
+	} else {
+		Serial.println("HTTP Request Failed");
+	}
+
+	http.end();
 }
