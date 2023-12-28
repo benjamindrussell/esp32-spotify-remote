@@ -31,11 +31,11 @@ enum request {
 	PAUSE,
 };
 
-const String WIFI_SSID = "ORBI45";
-const String WIFI_PASSWORD = "AB1C9517ADCF37E11340854C523B04B4C9451B2140C9971853DE45F7E5DCCA4A";
-const String CLIENT_ID = "974b8ee0b9f84500b4dc5340cf7b1416";
-const String CLIENT_SECRET = "11bfca0a5d7c451499d2fda8133652df";
-const String REDIRECT_URI = "http://192.168.1.148/callback";
+const String WIFI_SSID = "";
+const String WIFI_PASSWORD = "";
+const String CLIENT_ID = "";
+const String CLIENT_SECRET = "";
+const String REDIRECT_URI = "";
 
 spotify_client spotify;
 WebServer server(80);
