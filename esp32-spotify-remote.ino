@@ -10,6 +10,8 @@
 typedef struct{
 	String auth_code;
 	String access_token;
+	int start_time;
+	int expire_time;
 	String refresh_token;
 	bool auth_code_set;
 	bool access_token_set;
@@ -31,11 +33,11 @@ enum request {
 	PAUSE,
 };
 
-const String WIFI_SSID = "";
-const String WIFI_PASSWORD = "";
-const String CLIENT_ID = "";
-const String CLIENT_SECRET = "";
-const String REDIRECT_URI = "";
+const String WIFI_SSID = "Russell Family Network";
+const String WIFI_PASSWORD = "thewifipassword";
+const String CLIENT_ID = "974b8ee0b9f84500b4dc5340cf7b1416";
+const String CLIENT_SECRET = "11bfca0a5d7c451499d2fda8133652df";
+const String REDIRECT_URI = "http://192.168.1.145/callback";
 
 spotify_client spotify;
 WebServer server(80);
@@ -48,13 +50,21 @@ void IRAM_ATTR previous_ISR(){
 	spotify.request = PREVIOUS;
 }
 
+void IRAM_ATTR play_ISR(){
+	spotify.request = PLAY;
+}
+
+void IRAM_ATTR pause_ISR(){
+	spotify.request = PAUSE;
+}
+
 void setup(){
     Serial.begin(115200);
     delay(4000);
 	pinMode(BTN1, INPUT_PULLUP);
 	pinMode(BTN2, INPUT_PULLUP);
-	attachInterrupt(BTN1, next_ISR, FALLING);
-	attachInterrupt(BTN2, previous_ISR, FALLING);
+	attachInterrupt(BTN1, play_ISR, FALLING);
+	attachInterrupt(BTN2, pause_ISR, FALLING);
 
 	init_spotify_client(&spotify);
 
@@ -74,18 +84,30 @@ void setup(){
 
 int poll_rate = 5000;
 void loop(){
-	Serial.println("Loop Start");
 	if (spotify.auth_code_set){
 		Serial.println("Auth Code set");
+		if(spotify.access_token_set && (millis() - spotify.start_time) / 1000 > spotify.expire_time){
+			Serial.println("Access token expired, fetching new token...");
+			spotify.access_token_set = false;
+			refresh_tokens();
+		}
 		if(spotify.access_token_set){
 			Serial.println("Both Set");
 			switch(spotify.request){
 				case NEXT:
-					next();
+					spotify_remote_next();
 					spotify.request = NONE;
 					break;
 				case PREVIOUS:
-					previous();
+					spotify_remote_previous();
+					spotify.request = NONE;
+					break;
+				case PLAY:
+					spotify_remote_play();
+					spotify.request = NONE;
+					break;
+				case PAUSE:
+					spotify_remote_pause();
 					spotify.request = NONE;
 					break;
 				default:
@@ -93,12 +115,11 @@ void loop(){
 			}
 		} else {
 			Serial.println("Getting tokens");
-			get_access_tokens();
+			get_tokens();
 		}
 	} else {
 		server.handleClient();
 	}
-
 	delay(poll_rate);
 }
 
@@ -106,6 +127,8 @@ void init_spotify_client(spotify_client *spotify){
 	spotify->auth_code = "";
 	spotify->access_token = "";
 	spotify->refresh_token = "";
+	spotify->start_time = 0;
+	spotify->expire_time = 0;
 	spotify->auth_code_set = false;
 	spotify->access_token_set = false;
 	spotify->request = NONE;
@@ -156,7 +179,7 @@ void handle_authorization(){
 	}
 }
 
-void get_access_tokens(){
+void get_tokens(){
 	HTTPClient http;
 
     String credentials = CLIENT_ID + ":" + CLIENT_SECRET;
@@ -185,9 +208,11 @@ void get_access_tokens(){
 
             spotify.access_token = String((const char*)doc["access_token"]);
             spotify.access_token_set = true;
+			spotify.start_time = millis();
             spotify.refresh_token = String((const char*)doc["refresh_token"]);
+			spotify.expire_time = int(doc["expires_in"]);
 
-            Serial.println("Got access and refresh tokens");
+            Serial.println("Got access and refresh tokens1");
             Serial.println("Access token: " + spotify.access_token);
             Serial.println("Refresh Token: " + spotify.refresh_token);
 			poll_rate = 100;
@@ -202,15 +227,63 @@ void get_access_tokens(){
 	http.end();
 }
 
-void next(){
+void refresh_tokens(){
+	HTTPClient http;
+
+    String credentials = CLIENT_ID + ":" + CLIENT_SECRET;
+    String encoded_credentials =  base64::encode(credentials);
+
+	http.begin("https://accounts.spotify.com/api/token");
+	http.addHeader("Authorization", "Basic " + encoded_credentials);
+	http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+
+	String post_body = "grant_type=refresh_token&refresh_token=" + spotify.refresh_token;
+
+	int http_code = http.POST(post_body);
+
+	if (http_code > 0){
+		String json = http.getString();
+		Serial.println("HTTP Code: " + http_code);
+		Serial.println(json);
+		if(http_code == 200){
+			DynamicJsonDocument doc(1024);
+            DeserializationError error = deserializeJson(doc, json);
+            if (error){
+                Serial.print("Failed to parse JSON: ");
+                Serial.println(error.c_str());
+                return;
+            }
+
+            spotify.access_token = String((const char*)doc["access_token"]);
+            spotify.access_token_set = true;
+			spotify.start_time = millis();
+            spotify.refresh_token = String((const char*)doc["refresh_token"]);
+			spotify.expire_time = int(doc["expires_in"]);
+
+            Serial.println("Got access and refresh tokens2");
+            Serial.println("Access token: " + spotify.access_token);
+            Serial.println("Refresh Token: " + spotify.refresh_token);
+			poll_rate = 100;
+		} else {
+			Serial.println("Failed to refresh tokens3");
+            Serial.println(json);
+		}
+	} else {
+		Serial.println("HTTP Request Failed");
+	}
+
+	http.end();
+}
+
+void spotify_remote_next(){
 	Serial.println("Next");
 	HTTPClient http;
 
 	http.begin("https://api.spotify.com/v1/me/player/next");
 	http.addHeader("Authorization", "Bearer " + spotify.access_token);
-	http.addHeader("Content-Type", "application-json");
+	http.addHeader("Content-Type", "application/json");
 
-	int http_code = http.POST(" ");
+	int http_code = http.POST("{}");
 
 	if(http_code > 0){
 		// String json = http.getString();
@@ -223,15 +296,55 @@ void next(){
 	http.end();
 }
 
-void previous(){
+void spotify_remote_previous(){
 	Serial.println("Previous");
 	HTTPClient http;
 
 	http.begin("https://api.spotify.com/v1/me/player/previous");
 	http.addHeader("Authorization", "Bearer " + spotify.access_token);
-	http.addHeader("Content-Type", "application-json");
+	http.addHeader("Content-Type", "application/json");
 
-	int http_code = http.POST(" ");
+	int http_code = http.POST("{}");
+
+	if(http_code > 0){
+		// String json = http.getString();
+		Serial.println("HTTP Code: " + http_code);
+		// Serial.println(json);
+	} else {
+		Serial.println("HTTP Request Failed");
+	}
+
+	http.end();
+}
+
+void spotify_remote_play(){
+	Serial.println("Play");
+	HTTPClient http;
+	http.begin("https://api.spotify.com/v1/me/player/play");
+	http.addHeader("Authorization", "Bearer " + spotify.access_token);
+	http.addHeader("Content-Type", "application/json");
+
+	int http_code = http.PUT("{}");
+
+	if(http_code > 0){
+		// String json = http.getString();
+		Serial.println("HTTP Code: " + http_code);
+		// Serial.println(json);
+	} else {
+		Serial.println("HTTP Request Failed");
+	}
+
+	http.end();
+}
+
+void spotify_remote_pause(){
+	Serial.println("pause");
+	HTTPClient http;
+	http.begin("https://api.spotify.com/v1/me/player/pause");
+	http.addHeader("Authorization", "Bearer " + spotify.access_token);
+	// http.addHeader("Content-Type", "application/json");
+
+	int http_code = http.PUT("{}");
 
 	if(http_code > 0){
 		// String json = http.getString();
