@@ -16,6 +16,8 @@ typedef struct{
 	bool auth_code_set;
 	bool access_token_set;
 	int request;
+	bool shuffle_state;
+	String repeat_state;
 } spotify_client;
 
 enum web_page {
@@ -27,8 +29,8 @@ enum request {
 	NONE,
 	NEXT,
 	PREVIOUS,
-	VOL_UP,
-	VOL_DOWN,
+	SHUFFLE,
+	REPEAT,
 	PLAY,
 	PAUSE,
 };
@@ -37,34 +39,38 @@ const String WIFI_SSID = "";
 const String WIFI_PASSWORD = "";
 const String CLIENT_ID = "";
 const String CLIENT_SECRET = "";
-const String REDIRECT_URI = "";
+String REDIRECT_URI = "";
 
 spotify_client spotify;
 WebServer server(80);
 
-void IRAM_ATTR next_ISR(){
-	spotify.request = NEXT;
-}
+// void IRAM_ATTR next_ISR(){
+// 	spotify.request = NEXT;
+// }
 
-void IRAM_ATTR previous_ISR(){
-	spotify.request = PREVIOUS;
-}
+// void IRAM_ATTR previous_ISR(){
+// 	spotify.request = PREVIOUS;
+// }
 
-void IRAM_ATTR play_ISR(){
-	spotify.request = PLAY;
-}
+// void IRAM_ATTR play_ISR(){
+// 	spotify.request = PLAY;
+// }
 
-void IRAM_ATTR pause_ISR(){
-	spotify.request = PAUSE;
-}
+// void IRAM_ATTR pause_ISR(){
+// 	spotify.request = PAUSE;
+// }
+
+// void IRAM_ATTR volup_ISR(){
+// 	spotify.request = VOL_UP;
+// }
 
 void setup(){
     Serial.begin(115200);
     delay(4000);
-	pinMode(BTN1, INPUT_PULLUP);
-	pinMode(BTN2, INPUT_PULLUP);
-	attachInterrupt(BTN1, play_ISR, FALLING);
-	attachInterrupt(BTN2, pause_ISR, FALLING);
+	// pinMode(BTN1, INPUT_PULLUP);
+	// pinMode(BTN2, INPUT_PULLUP);
+	// attachInterrupt(BTN1, play_ISR, FALLING);
+	// attachInterrupt(BTN2, volup_ISR, FALLING);
 
 	init_spotify_client(&spotify);
 
@@ -76,6 +82,7 @@ void setup(){
     Serial.println("Connected to WiFi network");
     Serial.println("IP address: ");
     Serial.println(WiFi.localIP()); 
+	// REDIRECT_URI = "http://" + String(WiFi.localIP()) + "/callback";
 
 	server.on("/", handle_on_root);
 	server.on("/callback", handle_authorization);
@@ -85,14 +92,17 @@ void setup(){
 int poll_rate = 5000;
 void loop(){
 	if (spotify.auth_code_set){
-		Serial.println("Auth Code set");
+		// Serial.println("Auth Code set");
 		if(spotify.access_token_set && (millis() - spotify.start_time) / 1000 > spotify.expire_time){
 			Serial.println("Access token expired, fetching new token...");
 			spotify.access_token_set = false;
 			refresh_tokens();
 		}
 		if(spotify.access_token_set){
-			Serial.println("Both Set");
+			// Serial.println("Both Set");
+
+			spotify.request = get_input();
+
 			switch(spotify.request){
 				case NEXT:
 					spotify_remote_next();
@@ -110,12 +120,23 @@ void loop(){
 					spotify_remote_pause();
 					spotify.request = NONE;
 					break;
+				case SHUFFLE:
+					spotify_remote_toggle_shuffle_state();
+					spotify.request = NONE;
+					break;
+				case REPEAT:
+					spotify_remote_toggle_repeat_state();
+					spotify.request = NONE;
 				default:
 					break;
 			}
 		} else {
 			Serial.println("Getting tokens");
 			get_tokens();
+			if(spotify.access_token_set){
+				spotify_remote_init_repeate_state();
+				spotify_remote_init_shuffle_state();
+			}
 		}
 	} else {
 		server.handleClient();
@@ -132,6 +153,8 @@ void init_spotify_client(spotify_client *spotify){
 	spotify->auth_code_set = false;
 	spotify->access_token_set = false;
 	spotify->request = NONE;
+	spotify->shuffle_state = false;
+	spotify->repeat_state = "off";
 }
 
 String get_html_page(int page){
@@ -195,8 +218,8 @@ void get_tokens(){
 
 	if (http_code > 0){
 		String json = http.getString();
-		Serial.println("HTTP Code: " + http_code);
-		Serial.println(json);
+		// Serial.println("HTTP Code: " + http_code);
+		// Serial.println(json);
 		if(http_code == 200){
 			DynamicJsonDocument doc(1024);
             DeserializationError error = deserializeJson(doc, json);
@@ -212,12 +235,12 @@ void get_tokens(){
             spotify.refresh_token = String((const char*)doc["refresh_token"]);
 			spotify.expire_time = int(doc["expires_in"]);
 
-            Serial.println("Got access and refresh tokens1");
+            Serial.println("Got access and refresh tok1ens1");
             Serial.println("Access token: " + spotify.access_token);
             Serial.println("Refresh Token: " + spotify.refresh_token);
 			poll_rate = 100;
 		} else {
-			Serial.println("Failed to get tokens");
+			Serial.println("Failed to get tok2ens");
             Serial.println(json);
 		}
 	} else {
@@ -355,4 +378,159 @@ void spotify_remote_pause(){
 	}
 
 	http.end();
+}
+
+void spotify_remote_init_repeate_state(){
+	Serial.println("Init repeat state");
+	HTTPClient http;
+	http.begin("https://api.spotify.com/v1/me/player/repeat?state=off");
+	http.addHeader("Authorization", "Bearer " + spotify.access_token);
+
+	int http_code = http.PUT("{}");
+
+	if(http_code > 0){
+		// String json = http.getString();
+		Serial.println("HTTP Code: " + http_code);
+		// Serial.println(json);
+	} else {
+		Serial.println("HTTP Request Failed");
+	}
+
+	http.end();
+}
+
+void spotify_remote_toggle_repeat_state(){
+	Serial.println("Toggle repeat state");
+	HTTPClient http;
+	if (spotify.repeat_state == "off"){
+		http.begin("https://api.spotify.com/v1/me/player/repeat?state=context");
+		spotify.repeat_state = "context";
+	} else {
+		http.begin("https://api.spotify.com/v1/me/player/repeat?state=off");
+		spotify.repeat_state = "off";
+	}
+	http.addHeader("Authorization", "Bearer " + spotify.access_token);
+
+	int http_code = http.PUT("{}");
+
+	if(http_code > 0){
+		// String json = http.getString();
+		Serial.println("HTTP Code: " + http_code);
+		// Serial.println(json);
+	} else {
+		Serial.println("HTTP Request Failed");
+	}
+
+	http.end();
+}
+
+void spotify_remote_init_shuffle_state(){
+	Serial.println("Init shuffle state");
+	HTTPClient http;
+	http.begin("https://api.spotify.com/v1/me/player/shuffle?state=false");
+	http.addHeader("Authorization", "Bearer " + spotify.access_token);
+
+	int http_code = http.PUT("{}");
+
+	if(http_code > 0){
+		// String json = http.getString();
+		Serial.println("HTTP Code: " + http_code);
+		// Serial.println(json);
+	} else {
+		Serial.println("HTTP Request Failed");
+	}
+
+	http.end();
+}
+
+void spotify_remote_toggle_shuffle_state(){
+	Serial.println("Toggle shuffle state");
+	HTTPClient http;
+	if (spotify.shuffle_state){
+		http.begin("https://api.spotify.com/v1/me/player/shuffle?state=false");
+		spotify.shuffle_state = false;
+	} else {
+		http.begin("https://api.spotify.com/v1/me/player/shuffle?state=true");
+		spotify.shuffle_state = true;
+	}
+	http.addHeader("Authorization", "Bearer " + spotify.access_token);
+
+	int http_code = http.PUT("{}");
+
+	if(http_code > 0){
+		// String json = http.getString();
+		Serial.println("HTTP Code: " + http_code);
+		// Serial.println(json);
+	} else {
+		Serial.println("HTTP Request Failed");
+	}
+
+	http.end();
+}
+
+// void spotify_remote_volup(){
+
+// }
+
+// void spotify_remote_voldown(){
+
+// }
+
+// bool spotify_remote_get_shuffle_state(){
+// 	Serial.println("get volume");
+// 	HTTPClient http;
+// 	http.begin("https://api.spotify.com/v1/me/player");
+// 	http.addHeader("Authorization", "Bearer " + spotify.access_token);
+
+// 	bool shuffle_state = false;
+
+// 	int http_code = http.GET();
+
+// 	if (http_code > 0){
+// 		String json = http.getString();
+// 		Serial.println("HTTP Code: " + http_code);
+// 		// Serial.println(json);
+// 		if(http_code == 200){
+// 			DynamicJsonDocument doc(10000);
+//             DeserializationError error = deserializeJson(doc, json);
+//             if (error){
+//                 Serial.print("Failed to parse JSON: ");
+//                 Serial.println(error.c_str());
+//                 return -1;
+//             }
+
+// 			Serial.println("parsing json");
+// 			shuffle_state = bool(doc["shuffle_state"]);
+
+// 		} else {
+// 			Serial.println("Failed to get volume");
+//             Serial.println(json);
+// 		}
+// 	} else {
+// 		Serial.println("HTTP Request Failed");
+// 	}
+
+// 	delay(1000);
+// 	Serial.println("shuffle_state: " + shuffle_state);
+
+// 	return shuffle_state;
+// }
+
+int get_input(){
+	char message[16];
+	while (Serial.available() > 0){
+		static unsigned int message_pos = 0;
+
+		char in_byte = Serial.read();
+		if (in_byte != '\n' && (message_pos < 16 - 1)){
+			message[message_pos] = in_byte;
+			message_pos++;
+		}
+		else{
+			message[message_pos] = '\0';
+
+			message_pos = 0;
+		}
+	}
+	return atoi(message);
 }
