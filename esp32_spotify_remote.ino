@@ -17,19 +17,25 @@ WebServer server(80);
 
 void setup(){
     Serial.begin(115200);
-    delay(4000);
+    delay(5000);
 
 	spotify_init_client(&spotify);
 
+	// connect to wifi
     WiFi.begin(spotify.credentials.wifi_ssid, spotify.credentials.wifi_password);
     while(WiFi.status() != WL_CONNECTED){
         delay(1000);
         Serial.println("Connecting to WiFi...");
     }
     Serial.println("Connected to WiFi network");
-    Serial.println("IP address: ");
-    Serial.println(WiFi.localIP()); 
 
+	// send ip over serial to flipper zero
+	String ip = WiFi.localIP().toString();
+	spotify.redirect_uri = "http://" + ip + "/callback";
+    Serial.println("IP address: ");
+    Serial.println(ip); 
+
+	// assign server callbacks
 	server.on("/", handle_on_root);
 	server.on("/callback", handle_authorization);
 	server.begin();
@@ -37,53 +43,27 @@ void setup(){
 
 void loop(){
 	if (spotify.auth_code_set){
+		// if access token is expired, refresh token
 		if(spotify.access_token_set && (millis() - spotify.start_time) / 1000 > spotify.expire_time){
 			spotify.access_token_set = false;
 			spotify_refresh_tokens(&spotify);
 		}
 		if(spotify.access_token_set){
-
-			spotify.request = get_input();
-
-			switch(spotify.request){
-				case PREVIOUS:
-					spotify_previous(&spotify);
-					spotify.request = NONE;
-					break;
-				case NEXT:
-					spotify_next(&spotify);
-					spotify.request = NONE;
-					break;
-
-				case PLAY:
-					spotify_play(&spotify);
-					spotify.request = NONE;
-					break;
-				case PAUSE:
-					spotify_pause(&spotify);
-					spotify.request = NONE;
-					break;
-				case SHUFFLE:
-					spotify_toggle_shuffle_state(&spotify);
-					spotify.request = NONE;
-					break;
-				case REPEAT:
-					spotify_toggle_repeat_state(&spotify);
-					spotify.request = NONE;
-				default:
-					break;
-			}
+			spotify_make_request(&spotify, get_input());
 		} else {
-			Serial.println("Getting tokens");
 			spotify_get_tokens(&spotify);
 			if(spotify.access_token_set){
+				// turn off repeat and shuffle on connect
 				spotify_init_repeat_state(&spotify);
 				spotify_init_shuffle_state(&spotify);
 			}
 		}
 	} else {
+		// if the auth code isn't set, user will have to access the web server
 		server.handleClient();
 	}
+
+	// while getting code and tokens, delay five seconds, otherwise no delay
 	delay(spotify.poll_rate);
 }
 

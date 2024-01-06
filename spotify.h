@@ -56,15 +56,18 @@ void spotify_init_credentials(struct credentials *credentials);
 int spotify_get_tokens(spotify_client *spotify);
 int spotify_refresh_tokens(spotify_client *spotify);
 
-int spotify_next(spotify_client *spotify);
-int spotify_previous(spotify_client *spotify);
-int spotify_play(spotify_client *spotify);
-int spotify_pause(spotify_client *spotify);
-
-int spotify_init_repeat_state(spotify_client *spotify);
-int spotify_toggle_repeat_state(spotify_client *spotify);
 int spotify_init_shuffle_state(spotify_client *spotify);
-int spotify_toggle_shuffle_state(spotify_client *spotify);
+int spotify_init_repeat_state(spotify_client *spotify);
+
+int spotify_previous(spotify_client *spotify, HTTPClient &http);
+int spotify_next(spotify_client *spotify, HTTPClient &http);
+int spotify_play(spotify_client *spotify, HTTPClient &http);
+int spotify_pause(spotify_client *spotify, HTTPClient &http);
+int spotify_toggle_shuffle_state(spotify_client *spotify, HTTPClient &http);
+int spotify_toggle_repeat_state(spotify_client *spotify, HTTPClient &http);
+
+int spotify_make_request(spotify_client *spotify, int request);
+
 
 
 

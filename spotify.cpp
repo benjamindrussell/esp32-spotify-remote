@@ -44,7 +44,7 @@ void spotify_init_credentials(struct credentials *credentials){
  * After auth code is acquired, get access token and refresh token
  * 
  * @param spotify client struct containing program state
- * @return http status code on success, -1 on failure
+ * @return http status code, will be -1 on failed http request, or -1 on json deserialization error
  */
 int spotify_get_tokens(spotify_client *spotify){
 	HTTPClient http;
@@ -82,12 +82,8 @@ int spotify_get_tokens(spotify_client *spotify){
 			spotify->start_time = millis();
 			spotify->expire_time = int(doc["expires_in"]);
 
-			spotify->poll_rate = 100;
-		} else {
-			return -1;
-		}
-	} else {
-		return -1;
+			spotify->poll_rate = 0;
+        }
 	}
 
 	http.end();
@@ -143,72 +139,15 @@ int spotify_refresh_tokens(spotify_client *spotify){
 }
 
 /**
- * Skip to next song
+ * On connection, set shuffle to off
  * 
  * @param spotify client struct containing program state
  * @return http status code, will be -1 on failed http request
  */
-int spotify_next(spotify_client *spotify){
+int spotify_init_shuffle_state(spotify_client *spotify){
 	HTTPClient http;
 
-	http.begin("https://api.spotify.com/v1/me/player/next");
-	http.addHeader("Authorization", "Bearer " + spotify->access_token);
-	http.addHeader("Content-Type", "application/json");
-
-	int http_code = http.POST("{}");
-
-	http.end();
-	return http_code;
-}
-
-/**
- * Skip to previous song
- * 
- * @param spotify client struct containing program state
- * @return http status code, will be -1 on failed http request
- */
-int spotify_previous(spotify_client *spotify){
-	HTTPClient http;
-
-	http.begin("https://api.spotify.com/v1/me/player/previous");
-	http.addHeader("Authorization", "Bearer " + spotify->access_token);
-	http.addHeader("Content-Type", "application/json");
-
-	int http_code = http.POST("{}");
-
-	http.end();
-	return http_code;
-}
-
-/**
- * Play/resume track
- * 
- * @param spotify client struct containing program state
- * @return http status code, will be -1 on failed http request
- */
-int spotify_play(spotify_client *spotify){
-	HTTPClient http;
-
-	http.begin("https://api.spotify.com/v1/me/player/play");
-	http.addHeader("Authorization", "Bearer " + spotify->access_token);
-	http.addHeader("Content-Type", "application/json");
-
-	int http_code = http.PUT("{}");
-
-	http.end();
-	return http_code;
-}
-
-/**
- * Pause track
- * 
- * @param spotify client struct containing program state
- * @return http status code, will be -1 on failed http request
- */
-int spotify_pause(spotify_client *spotify){
-	HTTPClient http;
-
-	http.begin("https://api.spotify.com/v1/me/player/pause");
+	http.begin("https://api.spotify.com/v1/me/player/shuffle?state=false");
 	http.addHeader("Authorization", "Bearer " + spotify->access_token);
 
 	int http_code = http.PUT("{}");
@@ -236,14 +175,77 @@ int spotify_init_repeat_state(spotify_client *spotify){
 }
 
 /**
+ * Skip to previous song
+ * 
+ * @param spotify client struct containing program state
+ * @return http status code, will be -1 on failed http request
+ */
+int spotify_previous(spotify_client *spotify, HTTPClient &http){
+	http.begin("https://api.spotify.com/v1/me/player/previous");
+	http.addHeader("Authorization", "Bearer " + spotify->access_token);
+	http.addHeader("Content-Type", "application/json");
+
+	int http_code = http.POST("{}");
+
+	return http_code;
+}
+
+/**
+ * Skip to next song
+ * 
+ * @param spotify client struct containing program state
+ * @return http status code, will be -1 on failed http request
+ */
+int spotify_next(spotify_client *spotify, HTTPClient &http){
+	http.begin("https://api.spotify.com/v1/me/player/next");
+	http.addHeader("Authorization", "Bearer " + spotify->access_token);
+	http.addHeader("Content-Type", "application/json");
+
+	int http_code = http.POST("{}");
+
+	return http_code;
+}
+
+/**
+ * Play/resume track
+ * 
+ * @param spotify client struct containing program state
+ * @return http status code, will be -1 on failed http request
+ */
+int spotify_play(spotify_client *spotify, HTTPClient &http){
+	http.begin("https://api.spotify.com/v1/me/player/play");
+	http.addHeader("Authorization", "Bearer " + spotify->access_token);
+	http.addHeader("Content-Type", "application/json");
+
+	int http_code = http.PUT("{}");
+
+	return http_code;
+}
+
+/**
+ * Pause track
+ * 
+ * @param spotify client struct containing program state
+ * @return http status code, will be -1 on failed http request
+ */
+int spotify_pause(spotify_client *spotify, HTTPClient &http){
+	http.begin("https://api.spotify.com/v1/me/player/pause");
+	http.addHeader("Authorization", "Bearer " + spotify->access_token);
+
+	int http_code = http.PUT("{}");
+
+	return http_code;
+}
+
+
+
+/**
  * Toggle repeat between off and context
  * 
  * @param spotify client struct containing program state
  * @return http status code, will be -1 on failed http request
  */
-int spotify_toggle_repeat_state(spotify_client *spotify){
-	HTTPClient http;
-
+int spotify_toggle_repeat_state(spotify_client *spotify, HTTPClient &http){
 	if (spotify->repeat_state == "off"){
 		http.begin("https://api.spotify.com/v1/me/player/repeat?state=context");
 		spotify->repeat_state = "context";
@@ -255,9 +257,10 @@ int spotify_toggle_repeat_state(spotify_client *spotify){
 
 	int http_code = http.PUT("{}");
 
-	http.end();
 	return http_code;
 }
+
+
 
 /**
  * On connection, set shuffle to off
@@ -265,27 +268,7 @@ int spotify_toggle_repeat_state(spotify_client *spotify){
  * @param spotify client struct containing program state
  * @return http status code, will be -1 on failed http request
  */
-int spotify_init_shuffle_state(spotify_client *spotify){
-	HTTPClient http;
-
-	http.begin("https://api.spotify.com/v1/me/player/shuffle?state=false");
-	http.addHeader("Authorization", "Bearer " + spotify->access_token);
-
-	int http_code = http.PUT("{}");
-
-	http.end();
-	return http_code;
-}
-
-/**
- * On connection, set shuffle to off
- * 
- * @param spotify client struct containing program state
- * @return http status code, will be -1 on failed http request
- */
-int spotify_toggle_shuffle_state(spotify_client *spotify){
-	HTTPClient http;
-
+int spotify_toggle_shuffle_state(spotify_client *spotify, HTTPClient &http){
 	if(spotify->shuffle_state){
 		http.begin("https://api.spotify.com/v1/me/player/shuffle?state=false");
 		spotify->shuffle_state = false;
@@ -296,6 +279,44 @@ int spotify_toggle_shuffle_state(spotify_client *spotify){
 	http.addHeader("Authorization", "Bearer " + spotify->access_token);
 
 	int http_code = http.PUT("{}");
+
+	return http_code;
+}
+
+/**
+ * Abstracts all requests to a single function and 
+ * avoids multiple initializations of http client 
+ * 
+ * @param spotify client struct containing program state
+ * @param request int representing action to call
+ * @return http status code, will be -1 on failed http request
+ */
+int spotify_make_request(spotify_client *spotify, int request){
+	HTTPClient http;
+	int http_code;
+
+	switch (request){
+		case PREVIOUS:
+			http_code = spotify_previous(spotify, http);
+			break;
+		case NEXT:
+			http_code = spotify_next(spotify, http);
+			break;
+		case PLAY:
+			http_code = spotify_play(spotify, http);
+			break;
+		case PAUSE:
+			http_code = spotify_pause(spotify, http);
+			break;
+		case SHUFFLE:
+			http_code = spotify_toggle_shuffle_state(spotify, http);
+			break;
+		case REPEAT:
+			http_code = spotify_toggle_repeat_state(spotify, http);
+		default:
+			http_code = -1;
+			break;
+	}
 
 	http.end();
 	return http_code;
