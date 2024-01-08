@@ -25,15 +25,15 @@ void setup(){
     WiFi.begin(spotify.credentials.wifi_ssid, spotify.credentials.wifi_password);
     while(WiFi.status() != WL_CONNECTED){
         delay(1000);
-        Serial.println("Connecting to WiFi...");
+        // Serial.println("Connecting to WiFi...");
     }
-    Serial.println("Connected to WiFi network");
+    // Serial.println("Connected to WiFi network");
 
 	// send ip over serial to flipper zero
 	String ip = WiFi.localIP().toString();
 	spotify.redirect_uri = "http://" + ip + "/callback";
-    Serial.println("IP address: ");
-    Serial.println(ip); 
+    // Serial.println("IP address: ");
+    Serial.println("IP" + ip); 
 
 	// assign server callbacks
 	server.on("/", handle_on_root);
@@ -104,12 +104,12 @@ String get_html_page(spotify_client *spotify, int page){
 }
 
 void handle_on_root(){
-	Serial.println("Handling root...");
+	// Serial.println("Handling root...");
 	server.send(200, "text/html", get_html_page(&spotify, HOME));
 }
 
 void handle_authorization(){
-	Serial.println("Handling authorization...");
+	// Serial.println("Handling authorization...");
 
 	// if code parameter is empty, serve error page, else save value of code parameter to auth_code
 	if(server.arg("code") == ""){

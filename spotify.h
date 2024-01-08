@@ -12,6 +12,11 @@
 #include <HTTPClient.h>
 #include <WiFi.h>
 
+#define WIFI_SSID "your wifi name"
+#define WIFI_PASSWORD "your wifi password"
+#define CLIENT_ID "your client id"
+#define CLIENT_SECRET "your client secret"
+
 enum web_page {
 	HOME,
 	ERROR
@@ -67,10 +72,3 @@ int spotify_toggle_shuffle_state(spotify_client *spotify, HTTPClient &http);
 int spotify_toggle_repeat_state(spotify_client *spotify, HTTPClient &http);
 
 int spotify_make_request(spotify_client *spotify, int request);
-
-
-
-
-
-
-

@@ -34,10 +34,10 @@ void spotify_init_client(spotify_client *spotify){
  * @param credentials all credentials specified by the user
  */
 void spotify_init_credentials(struct credentials *credentials){
-	credentials->wifi_ssid = "";
-	credentials->wifi_password = "";
-	credentials->client_id = "";
-	credentials->client_secret = "";
+	credentials->wifi_ssid = WIFI_SSID;
+	credentials->wifi_password = WIFI_PASSWORD;
+	credentials->client_id = CLIENT_ID;
+	credentials->client_secret = CLIENT_SECRET;
 }
 
 /**
@@ -83,6 +83,7 @@ int spotify_get_tokens(spotify_client *spotify){
 			spotify->expire_time = int(doc["expires_in"]);
 
 			spotify->poll_rate = 0;
+			Serial.println("OK");
         }
 	}
 
@@ -131,6 +132,8 @@ int spotify_refresh_tokens(spotify_client *spotify){
 			// mark start time and time to expire
 			spotify->start_time = millis();
 			spotify->expire_time = int(doc["expires_in"]);
+
+			Serial.println("OK");
 		}
 	}
 
@@ -237,8 +240,6 @@ int spotify_pause(spotify_client *spotify, HTTPClient &http){
 	return http_code;
 }
 
-
-
 /**
  * Toggle repeat between off and context
  * 
@@ -259,8 +260,6 @@ int spotify_toggle_repeat_state(spotify_client *spotify, HTTPClient &http){
 
 	return http_code;
 }
-
-
 
 /**
  * On connection, set shuffle to off
