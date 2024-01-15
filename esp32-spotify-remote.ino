@@ -17,23 +17,20 @@ WebServer server(80);
 
 void setup(){
     Serial.begin(115200);
-    delay(5000);
+    delay(2000);
 
 	spotify_init_client(&spotify);
 
 	// connect to wifi
-    WiFi.begin(spotify.credentials.wifi_ssid, spotify.credentials.wifi_password);
-    while(WiFi.status() != WL_CONNECTED){
-        delay(1000);
-        // Serial.println("Connecting to WiFi...");
-    }
-    // Serial.println("Connected to WiFi network");
+	WiFi.begin(spotify.credentials.wifi_ssid, spotify.credentials.wifi_password);
+	while (WiFi.status() != WL_CONNECTED){
+		delay(500);
+	}
 
 	// send ip over serial to flipper zero
-	String ip = WiFi.localIP().toString();
-	spotify.redirect_uri = "http://" + ip + "/callback";
-    // Serial.println("IP address: ");
-    Serial.println("IP" + ip); 
+	spotify.ip_address = WiFi.localIP().toString();
+	spotify.redirect_uri = "http://" + spotify.ip_address + "/callback";
+	spotify.wifi_connected = true;
 
 	// assign server callbacks
 	server.on("/", handle_on_root);
@@ -42,28 +39,55 @@ void setup(){
 }
 
 void loop(){
-	if (spotify.auth_code_set){
-		// if access token is expired, refresh token
-		if(spotify.access_token_set && (millis() - spotify.start_time) / 1000 > spotify.expire_time){
-			spotify.access_token_set = false;
-			spotify_refresh_tokens(&spotify);
+	if(Serial.available() > 0){
+		int input = get_input();
+		switch(input){
+			case REMOTE_LAUNCH:
+				spotify.remote_launched = true;
+				spotify.auth_code_set = false;
+				spotify.access_token_set = false;
+				if(spotify.ip_address == "0.0.0.0"){
+					Serial.println("IP: " + spotify.ip_address + " Not connected, make sure ssid and password are correct");
+				} else {
+					Serial.println("IP: Go to " + spotify.ip_address + " in your browser");
+				}
+				break;
+			case BACK_BUTTON:
+				spotify.remote_launched = false;
+				break;
+			default:
+				break;
 		}
-		if(spotify.access_token_set){
-			spotify_make_request(&spotify, get_input());
-		} else {
-			spotify_get_tokens(&spotify);
-			if(spotify.access_token_set){
-				// turn off repeat and shuffle on connect
-				spotify_init_repeat_state(&spotify);
-				spotify_init_shuffle_state(&spotify);
-			}
-		}
-	} else {
-		// if the auth code isn't set, user will have to access the web server
-		server.handleClient();
 	}
 
-	// while getting code and tokens, delay five seconds, otherwise no delay
+	if(!spotify.remote_launched){
+		//  do nothing until remote is launched
+	} else if(!spotify.wifi_connected){
+		/**
+		 * @todo error handling
+		*/
+	} else if(!spotify.auth_code_set){
+		// if the auth code isn't set, user will have to access the web server
+		server.handleClient();
+
+	} else if(spotify.access_token_set && (millis() - spotify.start_time) / 1000 > spotify.expire_time) { 
+		// if code is set but expired then refresh tokens
+		spotify.access_token_set = false;
+		spotify_refresh_tokens(&spotify);	
+
+	} else if (!spotify.access_token_set){
+		spotify_get_tokens(&spotify);
+		if (spotify.access_token_set){
+			// turn off repeat and shuffle on connect
+			spotify_init_repeat_state(&spotify);
+			spotify_init_shuffle_state(&spotify);
+		}
+
+	} else {
+		spotify_make_request(&spotify, get_input());
+	}
+
+	// while getting code and tokens, delay two seconds, otherwise no delay
 	delay(spotify.poll_rate);
 }
 
@@ -122,7 +146,7 @@ void handle_authorization(){
 }
 
 /**
- * Get input via serial from flipper zero
+ * Get input from user via serial from flipper zero
  *
  * @return integer representing action chosen on flipper
  */

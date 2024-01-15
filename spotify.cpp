@@ -18,13 +18,16 @@ void spotify_init_client(spotify_client *spotify){
 	spotify->refresh_token = "";
 	spotify->repeat_state = "off";
 	spotify->redirect_uri = "";
+	spotify->ip_address = "0.0.0.0";
 	spotify->start_time = 0;
 	spotify->expire_time = 0;
-	spotify->poll_rate = 5000;
+	spotify->poll_rate = 2000;
 	spotify->request = NONE;
 	spotify->auth_code_set = false;
 	spotify->access_token_set = false;
 	spotify->shuffle_state = false;
+	spotify->remote_launched = false;
+	spotify->wifi_connected = false;
 	spotify_init_credentials(&(spotify->credentials));	
 }
 

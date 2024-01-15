@@ -12,17 +12,17 @@
 #include <HTTPClient.h>
 #include <WiFi.h>
 
-#define WIFI_SSID "your wifi name"
-#define WIFI_PASSWORD "your wifi password"
-#define CLIENT_ID "your client id"
-#define CLIENT_SECRET "your client secret"
+#define WIFI_SSID ""
+#define WIFI_PASSWORD ""
+#define CLIENT_ID ""
+#define CLIENT_SECRET ""
 
 enum web_page {
 	HOME,
 	ERROR
 };
 
-enum request {
+enum input {
 	NONE,
 	PREVIOUS,
 	NEXT,
@@ -30,6 +30,8 @@ enum request {
 	PAUSE,
 	SHUFFLE,
 	REPEAT,
+	REMOTE_LAUNCH,
+	BACK_BUTTON,
 };
 
 struct credentials{
@@ -45,6 +47,7 @@ typedef struct{
 	String refresh_token; // used to generate new access token
 	String repeat_state; // off or context
 	String redirect_uri;
+	String ip_address; // ip address of esp32
 	int start_time; // time token was acquired
 	int expire_time; // amount of time until token expires
 	int request; // next action to call
@@ -52,6 +55,8 @@ typedef struct{
 	bool auth_code_set;
 	bool access_token_set;
 	bool shuffle_state;
+	bool remote_launched;
+	bool wifi_connected;
 	struct credentials credentials; // contains wifi and spotify app credentials
 } spotify_client;
 
