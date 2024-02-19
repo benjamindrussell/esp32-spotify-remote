@@ -9,96 +9,66 @@
  * @author Ben Russell
  */
 
-#include "spotify.h"
 #include <WebServer.h>
+#include <WiFi.h>
 
-spotify_client spotify;
+#include "spotify.h"
+
+SpotifyClient spotify;
 WebServer server(80);
 
-void setup(){
-    Serial.begin(115200);
-    delay(2000);
 
-	spotify_init_client(&spotify);
 
+/**
+ * Connect to wifi and save IP
+*/
+void start_wifi(){
 	// connect to wifi
-	WiFi.begin(spotify.credentials.wifi_ssid, spotify.credentials.wifi_password);
-	while (WiFi.status() != WL_CONNECTED){
-		delay(500);
-	}
+	WiFi.begin(spotify.wifi_ssid, spotify.wifi_password);
+	
+	while (WiFi.status() != WL_CONNECTED); // wait for connection
 
-	// send ip over serial to flipper zero
+	// save ip address to send to Flipper Zero
 	spotify.ip_address = WiFi.localIP().toString();
 	spotify.redirect_uri = "http://" + spotify.ip_address + "/callback";
-	spotify.wifi_connected = true;
+}
 
-	// assign server callbacks
-	server.on("/", handle_on_root);
+/**
+ * Starts server in station mode and assigns callbacks to each url
+*/
+void start_server(){
+    server.on("/", handle_on_root);
 	server.on("/callback", handle_authorization);
 	server.begin();
 }
 
-void loop(){
-	if(Serial.available() > 0){
-		int input = get_input();
-		switch(input){
-			case REMOTE_LAUNCH:
-				spotify.remote_launched = true;
-				spotify.auth_code_set = false;
-				spotify.access_token_set = false;
-				if(spotify.ip_address == "0.0.0.0"){
-					Serial.println("IP: " + spotify.ip_address + " Not connected, make sure ssid and password are correct");
-				} else {
-					Serial.println("IP: Go to " + spotify.ip_address + " in your browser");
-				}
-				break;
-			case BACK_BUTTON:
-				spotify.remote_launched = false;
-				break;
-			default:
-				break;
-		}
-	}
+/**
+ * Serve home html page
+*/
+void handle_on_root(){
+	server.send(200, "text/html", get_html_page(HOME));
+}
 
-	if(!spotify.remote_launched){
-		//  do nothing until remote is launched
-	} else if(!spotify.wifi_connected){
-		/**
-		 * @todo error handling
-		*/
-	} else if(!spotify.auth_code_set){
-		// if the auth code isn't set, user will have to access the web server
-		server.handleClient();
-
-	} else if(spotify.access_token_set && (millis() - spotify.start_time) / 1000 > spotify.expire_time) { 
-		// if code is set but expired then refresh tokens
-		spotify.access_token_set = false;
-		spotify_refresh_tokens(&spotify);	
-
-	} else if (!spotify.access_token_set){
-		spotify_get_tokens(&spotify);
-		if (spotify.access_token_set){
-			// turn off repeat and shuffle on connect
-			spotify_init_repeat_state(&spotify);
-			spotify_init_shuffle_state(&spotify);
-		}
-
+/**
+ * Get acccess code from callback url
+*/
+void handle_authorization(){
+	// if access code argument is empty, serve error page, else save value of code parameter to auth_code
+	if(server.arg("code") == ""){
+		server.send(200, "text/html", get_html_page(ERROR));
 	} else {
-		spotify_make_request(&spotify, get_input());
+		spotify.auth_code = server.arg("code");
+		server.send(200, "text/html", "Authorization complete, you may close this tab");
 	}
-
-	// while getting code and tokens, delay two seconds, otherwise no delay
-	delay(spotify.poll_rate);
 }
 
 /**
  * Provides correct html page
  *
- * @param spotify client struct containing program state
  * @param page member of enum web_page that specifes the correct page
  * @return String containing html code
  */
-String get_html_page(spotify_client *spotify, int page){
+String get_html_page(int page){
 	String html = "";
 	html += "<!DOCTYPE html>\n";
 	html += "<html lang=\"en\">\n";
@@ -117,8 +87,8 @@ String get_html_page(spotify_client *spotify, int page){
 	}
 	html += "        <a href=\"https://accounts.spotify.com/authorize?";
 	html += "response_type=code&";
-	html += "client_id=" + spotify->credentials.client_id + "&";
-	html += "redirect_uri=" + spotify->redirect_uri + "&";
+	html += "client_id=" + spotify.client_id + "&";
+	html += "redirect_uri=" + spotify.redirect_uri + "&";
 	html += "scope=user-library-read user-read-playback-state user-modify-playback-state\">Log in to spotify</a>\n";
 	html += "    </main>\n";
 	html += "  </body>\n";
@@ -127,42 +97,92 @@ String get_html_page(spotify_client *spotify, int page){
 	return html;
 }
 
-void handle_on_root(){
-	// Serial.println("Handling root...");
-	server.send(200, "text/html", get_html_page(&spotify, HOME));
-}
-
-void handle_authorization(){
-	// Serial.println("Handling authorization...");
-
-	// if code parameter is empty, serve error page, else save value of code parameter to auth_code
-	if(server.arg("code") == ""){
-		server.send(200, "text/html", get_html_page(&spotify, ERROR));
-	} else {
-		spotify.auth_code = server.arg("code");
-		spotify.auth_code_set = true;
-		server.send(200, "text/html", "Authorization complete, you may close this tab");
-	}
+/**
+ * Will parse Serial data and correctly handle inputs
+ * 
+ * @param input string recieved over Serial
+*/
+void parse_input(const char *input_string){
+    int action = input_string[0] - '0'; // first byte should be a number in the Action enum
+    String data;
+    if(strlen(input_string) > 1){
+        if(action == CREDENTIALS){
+            data = String (input_string + 1); // cast as a string and cut off the identifying byte
+            spotify.wifi_ssid = data.substring(0, data.indexOf('+')); // '+' delimiter is in between ssid and password
+            spotify.wifi_password = data.substring(data.indexOf('+') + 1);
+        }
+    } else if (action < REMOTE_LAUNCH) {
+        spotify.request = action;
+    } else if(action == REMOTE_LAUNCH){ // reset auth code values and send ip to flipper to be displayed to the user
+        spotify.remote_launched = true;
+        spotify.auth_code = "";
+        spotify.access_token = "";
+        if (spotify.ip_address == "0.0.0.0"){
+            Serial.println("IP: " + spotify.ip_address + " Not connected, make sure ssid and password are correct");
+        } else {
+            Serial.println("IP: Go to " + spotify.ip_address + " in your browser");
+        }
+    } else if(action == BACK_BUTTON){
+        spotify.remote_launched = false;
+    }
 }
 
 /**
- * Get input from user via serial from flipper zero
- *
- * @return integer representing action chosen on flipper
- */
-int get_input(){
-	char message[16];
-	while (Serial.available() > 0){
-		static unsigned int message_pos = 0;
+ * freeRTOS task dedicated to listening for Serial input
+ * 
+ * @param parameter unused but required for freeRTOS
+*/
+void handle_input(void* parameter){
+    int buffer_size = 128;
+    char buffer[buffer_size]; 
+    int buffer_index = 0;
 
-		char in_byte = Serial.read();
-		if (in_byte != '\n' && (message_pos < 16 - 1)){
-			message[message_pos] = in_byte;
-			message_pos++;
-		} else {
-			message[message_pos] = '\0';
-			message_pos = 0;
-		}
-	}
-	return atoi(message);
+    for(;;){
+        if(Serial.available() > 0){
+            char in_byte = Serial.read();
+            if (in_byte != '\n' && buffer_index < buffer_size) { // read until delimiter or max buffer size
+                buffer[buffer_index] = in_byte;
+                buffer_index++;
+            } else { // null terminate string and handle the data
+                buffer[buffer_index] = '\0';
+                buffer_index = 0;
+                parse_input(buffer);
+            }
+        }
+    }
+}
+
+void setup() {
+    Serial.begin(115200);
+    xTaskCreate(
+        handle_input, // function name
+        "Handle Input", // task name for debugging,
+        1000, // stack size
+        NULL, // task parameters
+        1, // task priority
+        NULL // task handle
+    );
+    spotify_init_client(&spotify);
+    start_wifi();
+    start_server();
+}
+
+void loop() {
+    if(!spotify.remote_launched){
+        // do nothing until remote is launched
+    } else if(WiFi.status() != WL_CONNECTED){
+        // if wifi isn't connected, try again
+        start_wifi();
+        start_server();
+    } else if(spotify.auth_code.length() == 0){
+        // if the auth code isn't set, user will have to access the web server
+        server.handleClient();
+    } else if(spotify.access_token.length() == 0){
+        // make request to spotify api for access token
+        spotify_get_tokens(&spotify);
+    } else {
+        // make request to spotify api correspinding to action chosen on Flipper Zero
+        spotify_make_request(&spotify);
+        spotify.request = NONE;
+    }
 }
