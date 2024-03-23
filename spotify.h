@@ -11,10 +11,10 @@
 #include <base64.h>
 #include <HTTPClient.h>
 
-#define CLIENT_ID "974b8ee0b9f84500b4dc5340cf7b1416"
-#define CLIENT_SECRET "11bfca0a5d7c451499d2fda8133652df"
-#define WIFI_SSID "wifihotspot"
-#define WIFI_PASSWORD "Pandas#57"
+#define CLIENT_ID ""
+#define CLIENT_SECRET ""
+#define WIFI_SSID ""
+#define WIFI_PASSWORD ""
 
 #define WIFI_SSID_SIZE 32
 #define WIFI_PASSWORD_SIZE 63
@@ -58,9 +58,6 @@ void spotify_init_client(SpotifyClient *spotify);
 
 int spotify_get_tokens(SpotifyClient *spotify);
 int spotify_refresh_tokens(SpotifyClient *spotify);
-
-int spotify_init_shuffle_state(SpotifyClient *spotify);
-int spotify_init_repeat_state(SpotifyClient *spotify);
 
 int spotify_previous(SpotifyClient *spotify, HTTPClient &http);
 int spotify_next(SpotifyClient *spotify, HTTPClient &http);

@@ -116,42 +116,6 @@ int spotify_refresh_tokens(SpotifyClient *spotify){
 }
 
 /**
- * On connection, set shuffle to off
- * 
- * @param spotify client struct containing program state
- * @return http status code, will be -1 on failed http request
- */
-int spotify_init_shuffle_state(SpotifyClient *spotify){
-	HTTPClient http;
-
-	http.begin("https://api.spotify.com/v1/me/player/shuffle?state=false");
-	http.addHeader("Authorization", "Bearer " + spotify->access_token);
-
-	int http_code = http.PUT("{}");
-
-	http.end();
-	return http_code;
-}
-
-/**
- * On connection, set repeat to off
- * 
- * @param spotify client struct containing program state
- * @return http status code, will be -1 on failed http request
- */
-int spotify_init_repeat_state(SpotifyClient *spotify){
-	HTTPClient http;
-
-	http.begin("https://api.spotify.com/v1/me/player/repeat?state=off");
-	http.addHeader("Authorization", "Bearer " + spotify->access_token);
-
-	int http_code = http.PUT("{}");
-
-	http.end();
-	return http_code;
-}
-
-/**
  * Skip to previous song
  * 
  * @param spotify client struct containing program state

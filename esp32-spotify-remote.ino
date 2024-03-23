@@ -17,14 +17,13 @@
 SpotifyClient spotify;
 WebServer server(80);
 
-
-
 /**
  * Connect to wifi and save IP
 */
 void start_wifi(){
-	// connect to wifi
-	WiFi.begin(spotify.wifi_ssid, spotify.wifi_password);
+    Serial.println("HI"); // let the flipper know esp32 is plugged in
+
+	WiFi.begin(spotify.wifi_ssid, spotify.wifi_password); // connect to wifi
 	
 	while (WiFi.status() != WL_CONNECTED); // wait for connection
 
@@ -102,29 +101,19 @@ String get_html_page(int page){
  * 
  * @param input string recieved over Serial
 */
-void parse_input(const char *input_string){
+void handle_input(const char *input_string){
     int action = input_string[0] - '0'; // first byte should be a number in the Action enum
     String data;
-    if(strlen(input_string) > 1){
-        if(action == CREDENTIALS){
-            data = String (input_string + 1); // cast as a string and cut off the identifying byte
-            spotify.wifi_ssid = data.substring(0, data.indexOf('+')); // '+' delimiter is in between ssid and password
-            spotify.wifi_password = data.substring(data.indexOf('+') + 1);
-        }
-    } else if (action < REMOTE_LAUNCH) {
+    if(action >= PREVIOUS && action <= REPEAT){
         spotify.request = action;
-    } else if(action == REMOTE_LAUNCH){ // reset auth code values and send ip to flipper to be displayed to the user
+    } else if(action == REMOTE_LAUNCH){
         spotify.remote_launched = true;
-        spotify.auth_code = "";
-        spotify.access_token = "";
-        if (spotify.ip_address == "0.0.0.0"){
-            Serial.println("IP: " + spotify.ip_address + " Not connected, make sure ssid and password are correct");
-        } else {
-            Serial.println("IP: Go to " + spotify.ip_address + " in your browser");
-        }
     } else if(action == BACK_BUTTON){
         spotify.remote_launched = false;
+        spotify.auth_code = "";
+        spotify.access_token = "";
     }
+
 }
 
 /**
@@ -132,7 +121,7 @@ void parse_input(const char *input_string){
  * 
  * @param parameter unused but required for freeRTOS
 */
-void handle_input(void* parameter){
+void read_input(void* parameter){
     int buffer_size = 128;
     char buffer[buffer_size]; 
     int buffer_index = 0;
@@ -146,7 +135,7 @@ void handle_input(void* parameter){
             } else { // null terminate string and handle the data
                 buffer[buffer_index] = '\0';
                 buffer_index = 0;
-                parse_input(buffer);
+                handle_input(buffer);
             }
         }
     }
@@ -155,7 +144,7 @@ void handle_input(void* parameter){
 void setup() {
     Serial.begin(115200);
     xTaskCreate(
-        handle_input, // function name
+        read_input, // function name
         "Handle Input", // task name for debugging,
         1000, // stack size
         NULL, // task parameters
@@ -175,6 +164,11 @@ void loop() {
         start_wifi();
         start_server();
     } else if(spotify.auth_code.length() == 0){
+        if (spotify.ip_address == "0.0.0.0"){
+            Serial.println("IP: " + spotify.ip_address + " Not connected, make sure ssid and password are correct");
+        } else {
+            Serial.println("IP: Go to " + spotify.ip_address + " in your browser");
+        }
         // if the auth code isn't set, user will have to access the web server
         server.handleClient();
     } else if(spotify.access_token.length() == 0){
