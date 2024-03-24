@@ -1,6 +1,7 @@
 # ESP32 Spotify Remote
 
 ## Firmware for the Flipper Zero WiFi Devboard (ESP32) that talks to Spotify and lets you control playback 
+Get the Flipper app [here](https://github.com/benjamindrussell/flipper-spotify-remote)
 
 ### Installation
 Currently the only option is to build from source
@@ -15,7 +16,7 @@ Currently the only option is to build from source
 #### 5. Go to library manager and add ArduinoJson
 <img width="1440" alt="image" src="https://github.com/benjamindrussell/esp32-spotify-remote/assets/46113261/a21e00d4-cf87-4b60-8d42-d32e3cbc9616">
 
-#### 6. Edit these 4 lines and add your client_id, client_secret, wifi ssid, and wifi password
+#### 6. Edit these 4 lines and add your [client_id, client_secret,](https://github.com/benjamindrussell/flipper-spotify-remote?tab=readme-ov-file#setup) wifi ssid, and wifi password
 <img width="1440" alt="image" src="https://github.com/benjamindrussell/esp32-spotify-remote/assets/46113261/0bcfab10-d21e-4d9e-b769-98807d284032">
 
 #### 7. For the official WiFi Devboard select ESP32S2 Dev Module and upload
