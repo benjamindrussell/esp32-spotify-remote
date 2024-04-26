@@ -21,7 +21,8 @@
 
 enum web_page {
 	HOME,
-	ERROR
+	ERROR,
+	DONE
 };
 
 // represents each possible action based on serial input

@@ -57,7 +57,7 @@ void handle_authorization(){
 		server.send(200, "text/html", get_html_page(ERROR));
 	} else {
 		spotify.auth_code = server.arg("code");
-		server.send(200, "text/html", "Authorization complete, you may close this tab");
+		server.send(200, "text/html", get_html_page(DONE));
 	}
 }
 
@@ -68,32 +68,81 @@ void handle_authorization(){
  * @return String containing html code
  */
 String get_html_page(int page){
-	String html = "";
-	html += "<!DOCTYPE html>\n";
-	html += "<html lang=\"en\">\n";
-	html += "  <head>\n";
-	html += "    <meta charset=\"UTF-8\">\n";
-	html += "    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n";
-	html += "    <meta http-equiv=\"X-UA-Compatible\" content=\"ie=edge\">\n";
-	html += "    <title>Flipper Zero | Spotify</title>\n";
-	html += "  </head>\n";
-	html += "  <body>\n";
-	html += "    <main>\n";
-	if(page == HOME){
-		html += "        <h1>Login to Spotify</h1>\n";
-	} else if (page == ERROR){
-		html += "        <h1>Login Failed, Try Again</h1>\n";
-	}
-	html += "        <a href=\"https://accounts.spotify.com/authorize?";
+    String html= "";
+    html += "<!DOCTYPE html>\n";
+    html += "<html lang=\"en\">\n";
+    html += "<head>\n";
+    html += "    <meta charset=\"UTF-8\">\n";
+    html += "    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n";
+    html += "    <title>Flipper Zero | Spotify</title>\n";
+    html += "    <link rel=\"icon\" type=\"image/png\" href=\"https://cdn.flipperzero.one/qFlipper_macOS_256px_ugly.png\">\n";
+    html += "    <link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\n";
+    html += "    <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>\n";
+    html += "    <link href=\"https://fonts.googleapis.com/css2?family=Jersey+10&display=swap\" rel=\"stylesheet\">\n";
+    html += "    <style>\n";
+    html += "        body {\n";
+    html += "            background: #FF8200;\n";
+    html += "            background-image: url(\"https://flipperzero.one/img/tild6362-3266-4764-a536-643963633836__pattern_preview.png\");\n";
+    html += "            margin: 0;\n";
+    html += "            padding: 0;\n";
+    html += "            font-family: 'Jersey 10';\n";
+    html += "        }\n";
+
+    html += "        #logos {\n";
+    html += "            display: flex;\n";
+    html += "            align-items: center;\n";
+    html += "            justify-content: center;\n";
+    html += "            gap: 50px;\n";
+    html += "        }\n";
+
+    html += "        #button {\n";
+    html += "            border: none;\n";
+    html += "            border-radius: 0;\n";
+    html += "            background-color: #000000;\n";
+    html += "            color: #ffffff;\n";
+    html += "            font-family: 'Jersey 10';\n";
+    html += "            font-size: 30px;\n";
+    html += "            padding: 10px 20px;\n";
+    html += "            text-decoration: none;\n";
+    html += "        }\n";
+
+    html += "        #button:hover {\n";
+    html += "            cursor: pointer;\n";
+    html += "        }\n";
+    html += "    </style>\n";
+    html += "</head>\n";
+    html += "<body>\n";
+    html += "    <div id=\"content\" style=\"background-color: #ffffff; padding: 40px;\">\n";
+    html += "        <div id=\"logos\">\n";
+    html += "            <img\n";
+    html += "                src=\"https://cdn.flipperzero.one/transparent.png\"\n";
+    html += "                style=\"width: 100px;\"\n";
+    html += "            />\n";
+    html += "            <img \n";
+    html += "                src=\"https://upload.wikimedia.org/wikipedia/commons/thumb/1/19/Spotify_logo_without_text.svg/1024px-Spotify_logo_without_text.svg.png\"\n";
+    html += "                style=\"width: 75px;\"\n";
+    html += "            />\n";
+    html += "        </div>\n";
+    html += "        <h1 style=\"font-size: 60px; text-align: center;\">Spotify Remote</h1>\n";
+    html += "        <div id=\"login\" style=\"display: flex; justify-content: center;\">\n";
+    if(page == ERROR) {
+        html += "    <h2 style=\"text-align: center;\">Oops! login failed, please try again.</h2>\n";
+    } else if(page == DONE){
+        html +="     <h2 style=\"text-align: center;\">Login successful, you may now close this tab</h2>\n";
+    }
+    if(page == HOME || page == ERROR){
+	html += "        <a id=\"button\" href=\"https://accounts.spotify.com/authorize?";
 	html += "response_type=code&";
 	html += "client_id=" + spotify.client_id + "&";
 	html += "redirect_uri=" + spotify.redirect_uri + "&";
-	html += "scope=user-library-read user-read-playback-state user-modify-playback-state\">Log in to spotify</a>\n";
-	html += "    </main>\n";
-	html += "  </body>\n";
-	html += "</html>\n";
-
-	return html;
+	html += "scope=user-library-read user-read-playback-state user-modify-playback-state\">Login</a>\n";
+    }
+    html += "        </div>\n";
+    html += "    </div>\n";
+    html += "</body>\n";
+    html += "</html>\n";
+    
+    return html;
 }
 
 /**
